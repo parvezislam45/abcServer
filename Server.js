@@ -49,15 +49,23 @@ async function run (){
 
           app.put("/product/:id", async (req, res) => {
             const id = req.params.id;
-            const user = req.body;
+            const data = req.body;
             const filter = { _id: new ObjectId(id) };
-            const options = { upsert: true };
-            const updateDoc = {
-              $set: {name : user.name, description : user.description, price: user.price,category:user.category,image:user.image},
-            };
-            const result = await productCollection.updateOne(filter,updateDoc,options);
-            res.send(result);
-          });
+            const updateDoc = { $set: {} };
+            if (data.name) updateDoc.$set.name = data.name;
+            if (data.description) updateDoc.$set.description = data.description;
+            if (data.price) updateDoc.$set.price = data.price;
+            if (data.category) updateDoc.$set.category = data.category;
+            if (data.image) updateDoc.$set.image = data.image;
+        
+            try {
+                const result = await productCollection.updateOne(filter, updateDoc);
+                res.send(result);
+            } catch (error) {
+                console.error("Error updating product:", error);
+                res.status(500).send("Error updating product");
+            }
+        });
 
         app.delete("/product/:id", async (req, res) => {
             const id = req.params.id;
