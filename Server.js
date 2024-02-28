@@ -1,6 +1,6 @@
 const express = require("express");
 const app = express();
-const port = process.env.PORT || 9000;
+const port = process.env.PORT || 7000;
 const { MongoClient, ServerApiVersion,ObjectId } = require('mongodb');
 const cors = require("cors");
 const multer = require('multer');
@@ -60,7 +60,7 @@ async function run (){
                 name: req.body.name,
                 price: req.body.price,
                 description: req.body.description,
-                image: req.file.filename // Assuming you're saving the filename in the database
+                image: req.file.filename
               };
           
               const result = await productCollection.insertOne(newProduct);
@@ -82,14 +82,10 @@ async function run (){
               if (data.name) updateDoc.$set.name = data.name;
               if (data.description) updateDoc.$set.description = data.description;
               if (data.price) updateDoc.$set.price = data.price;
-              if (req.file) updateDoc.$set.image = req.file.filename; // Update image only if a new image is provided
-          
-              // Fetch the existing product to get the old image filename
+              if (req.file) updateDoc.$set.image = req.file.filename; 
               const existingProduct = await productCollection.findOne(filter);
-          
-              // If a new image is provided and there's an existing image, delete the old image
               if (req.file && existingProduct.image) {
-                fs.unlinkSync(path.join(__dirname, 'uploads', existingProduct.image)); // Delete old image file
+                fs.unlinkSync(path.join(__dirname, 'uploads', existingProduct.image)); 
               }
           
               const result = await productCollection.updateOne(filter, updateDoc);
@@ -132,11 +128,59 @@ async function run (){
 
     // ----------------------- Order ---------------------------
     app.post("/orders", async (req, res) => {
-      const {userName, productName, email, price } = req.body; // Extracting specific fields
-      const newItem = {userName, productName, email, price }; // Creating an object with specific fields
-      const result = await orderCollection.insertOne(newItem);
-      res.send(result);
+      const { userName, email, productName, price } = req.body;
+      const existingOrder = await orderCollection.findOne({ productName: productName });
+    
+      if (existingOrder) {
+        const existingUserBid = existingOrder.bids.find(bid => bid.email === email);
+    
+        if (existingUserBid) {
+          existingUserBid.userName = userName;
+          existingUserBid.price = price;
+    
+          const result = await orderCollection.updateOne(
+            { productName: productName, "bids.email": email },
+            { $set: { "bids.$": existingUserBid } }
+          );
+    
+          res.send({ message: "Bid updated successfully." });
+        } else {
+          const newBid = {
+            userName: userName,
+            email: email,
+            price: price
+          };
+    
+          const result = await orderCollection.updateOne(
+            { productName: productName },
+            { $push: { bids: newBid } }
+          );
+    
+          res.send({ message: "Bid posted successfully." });
+        }
+      } else {
+        
+        const newOrder = {
+          productName: productName,
+          bids: [{
+            userName: userName,
+            email: email,
+            price: price
+          }]
+        };
+    
+        const result = await orderCollection.insertOne(newOrder);
+        res.send({ message: "Order posted successfully." });
+      }
     });
+    
+    
+    
+    
+    
+    
+    
+  
 
 
     app.get("/orders", async (req, res) => {
@@ -176,6 +220,7 @@ async function run (){
       res.send(users);
     });
 
+
     }
     finally{}
 }
@@ -187,5 +232,3 @@ app.get("/", (req, res) => {
   app.listen(port, () => {
     console.log("Alhamdullilah Your server is Start");
   });
-
-
